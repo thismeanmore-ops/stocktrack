@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stocktrack-v6';
+const CACHE_NAME = 'stocktrack-v7';
 const urlsToCache = [
   '/',
   '/index.html',
