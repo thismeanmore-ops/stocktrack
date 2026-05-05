@@ -2,7 +2,7 @@
   "name": "StockTrack - Smart Portfolio Tracker",
   "short_name": "StockTrack",
   "description": "แอปติดตามพอร์ตหุ้นแบบ FIFO",
-  "start_url": "/",
+  "start_url": "/index.html",
   "display": "standalone",
   "theme_color": "#006A6A",
   "background_color": "#F8FAFC",
