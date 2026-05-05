@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>StockTrack · Material Design</title>
+    <meta name="theme-color" content="#006A6A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="StockTrack">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>StockTrack · PWA Portfolio</title>
     <!-- Material Symbols & Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,1" />
@@ -109,6 +115,24 @@
             font-size: 14px;
             color: var(--md-on-surface-variant);
             margin-top: 4px;
+        }
+        .install-prompt {
+            background: var(--md-primary-container);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--md-on-primary-container);
+            transition: 0.2s;
+        }
+        .install-prompt:hover {
+            opacity: 0.9;
+            transform: scale(0.98);
         }
         .theme-toggle {
             background: var(--md-surface-variant);
@@ -351,7 +375,7 @@
         .profit-green { color: #10b981; }
         .loss-red { color: #ef4444; }
         
-        /* Stock list - แสดง USD/THB แบบบนล่างเหมือนกัน */
+        /* Stock list */
         .stocks-list {
             display: flex;
             flex-direction: column;
@@ -382,7 +406,6 @@
             font-weight: 600;
             font-size: 18px;
         }
-        /* แถวแสดงจำนวนหุ้นและต้นทุนเฉลี่ย */
         .stock-holding-row {
             display: flex;
             flex-wrap: wrap;
@@ -412,7 +435,6 @@
             font-weight: normal;
             opacity: 0.8;
         }
-        /* แถวค่าใช้จ่ายและมูลค่า */
         .stock-values-row {
             display: flex;
             flex-wrap: wrap;
@@ -434,6 +456,27 @@
             font-weight: 600;
         }
 
+        /* Offline Indicator */
+        .offline-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--md-error);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 12px;
+            font-weight: 500;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .offline-indicator.show {
+            display: flex;
+        }
+
         input[type="file"] { display: none; }
 
         @media (max-width: 700px) {
@@ -448,14 +491,19 @@
         <div class="logo-area">
             <div class="logo-icon"><span class="material-symbols-outlined">show_chart</span></div>
             <div class="brand">
-                <h1>StockTrack</h1>
+                <h1>StockTrack PWA</h1>
                 <p>Material Design · ติดตามพอร์ตหุ้นอัจฉริยะ</p>
             </div>
         </div>
-        <button class="theme-toggle" id="themeToggleBtn">
-            <span class="material-symbols-outlined">dark_mode</span> 
-            <span id="themeText">Dark Mode</span>
-        </button>
+        <div style="display: flex; gap: 12px;">
+            <button id="installBtn" class="install-prompt" style="display: none;">
+                <span class="material-symbols-outlined">install_desktop</span> ติดตั้งแอป
+            </button>
+            <button class="theme-toggle" id="themeToggleBtn">
+                <span class="material-symbols-outlined">dark_mode</span> 
+                <span id="themeText">Dark Mode</span>
+            </button>
+        </div>
     </div>
 
     <!-- Action Bar ด้านบน (Load / Save) -->
@@ -528,7 +576,45 @@
     </div>
 </div>
 
+<div id="offlineIndicator" class="offline-indicator">
+    <span class="material-symbols-outlined">cloud_off</span> คุณกำลังออฟไลน์
+</div>
+
 <script>
+    // PWA Installation
+    let deferredPrompt;
+    const installBtn = document.getElementById('installBtn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.style.display = 'flex';
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                installBtn.style.display = 'none';
+            }
+            deferredPrompt = null;
+        }
+    });
+
+    // Offline detection
+    window.addEventListener('load', () => {
+        if (!navigator.onLine) {
+            document.getElementById('offlineIndicator').classList.add('show');
+        }
+    });
+    window.addEventListener('online', () => {
+        document.getElementById('offlineIndicator').classList.remove('show');
+    });
+    window.addEventListener('offline', () => {
+        document.getElementById('offlineIndicator').classList.add('show');
+    });
+
     // ---------- Data ----------
     let transactions = [];
 
@@ -582,7 +668,7 @@
     // คำนวณพอร์ต FIFO (USD + THB)
     function calcPortfolio() {
         const sorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const groups = new Map(); // stock -> { lotsUSD, lotsTHB, realizedUSD, realizedTHB }
+        const groups = new Map();
         
         for (let tx of sorted) {
             if (!groups.has(tx.stock)) {
@@ -667,7 +753,6 @@
     }
 
     function renderAll() {
-        // ตาราง
         const tbody = document.getElementById('txTableBody');
         if (!transactions.length) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">ไม่มีข้อมูล</td></tr>';
@@ -694,7 +779,6 @@
         
         const stats = calcPortfolio();
         
-        // สรุปพอร์ตหลัก
         document.getElementById('mainStats').innerHTML = `
             <div class="stat-tile">
                 <div class="label"><span class="material-symbols-outlined">payments</span> ต้นทุนรวมคงเหลือ</div>
@@ -713,7 +797,7 @@
             </div>
         `;
         
-        // รายละเอียดแยกตามหุ้น - แสดง USD และ THB แบบเดียวกัน (บนล่าง)
+        // รายละเอียดแยกตามหุ้น
         const allStocks = new Map();
         for (let tx of transactions) {
             if (!allStocks.has(tx.stock)) allStocks.set(tx.stock, []);
@@ -771,7 +855,6 @@
         } else {
             stocksDiv.innerHTML = finalStocks.map(s => {
                 const pnlClassUSD = s.realizedUSD >= 0 ? 'profit-green' : 'loss-red';
-                const pnlClassTHB = s.realizedTHB >= 0 ? 'profit-green' : 'loss-red';
                 const hasShares = s.shares > 0;
                 
                 return `
@@ -784,7 +867,6 @@
                             </div>
                         </div>
                         
-                        <!-- แถวแสดงจำนวนหุ้นและต้นทุนเฉลี่ย (บน) -->
                         <div class="stock-holding-row">
                             <div class="holding-item">
                                 <div class="holding-label">จำนวนหุ้นคงเหลือ</div>
@@ -800,7 +882,6 @@
                             </div>
                         </div>
                         
-                        <!-- แถวแสดงมูลค่ารวม (ล่าง) -->
                         <div class="stock-values-row">
                             <div class="value-item">
                                 <div class="value-label">มูลค่าคงเหลือ (USD)</div>
@@ -896,6 +977,62 @@
     document.getElementById('transDate').value = new Date().toISOString().slice(0, 10);
     loadFromLocal();
     initTheme();
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then(reg => {
+                console.log('Service Worker registered:', reg);
+            }).catch(err => {
+                console.log('Service Worker registration failed:', err);
+            });
+        });
+    }
+</script>
+
+<!-- Service Worker Script -->
+<script>
+    // This script will be saved as sw.js
+    if (window.location.href.includes('localhost') || window.location.protocol === 'https:') {
+        const swCode = `const CACHE_NAME = 'stocktrack-v1';
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  'https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap',
+  'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,1'
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(urlsToCache))
+  );
+});
+
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => response || fetch(event.request))
+  );
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.filter(name => name !== CACHE_NAME)
+          .map(name => caches.delete(name))
+      );
+    })
+  );
+});`;
+        // Create blob and save
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        // Note: In real deployment, sw.js must be served from root
+        console.log('Service Worker code ready. In production, save as sw.js file in root directory.');
+    }
 </script>
 </body>
 </html>
